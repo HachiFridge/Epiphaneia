@@ -2,6 +2,14 @@
 
 A "simple" command-line DMM GAMES PLAYER launcher written in Go.
 
+## :warning: Notice :warning:
+
+You can only run games that you actually own on
+your DMM GAMES account.
+You cannot add new free games or buy games from
+the library, and must be done through the official
+website or client.
+
 ## How to use
 
 While this project works under Linux, this is currently meant to be run under
