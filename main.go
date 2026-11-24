@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"strconv"
+	"syscall"
 
 	dmmgo "codeberg.org/kita/dmm-go"
 )
@@ -14,9 +19,33 @@ var (
 	client *dmmgo.Client
 )
 
+func ListGames() {
+	if err := CheckAccessToken(); err != nil {
+		log.Fatal(err)
+	}
+
+	games, err := client.GetUserGames()
+	if err != nil {
+		log.Fatal("Could not get games: ", err)
+	}
+
+	fmt.Println("List of games:")
+
+	for i, v := range games {
+		st := strconv.Itoa(i+1) + ". " + v.Title + " - " + v.ProductID
+		if CheckIfInstalled(v.ProductID) == true {
+			st = st + " [INSTALLED]"
+		}
+		fmt.Println(st)
+	}
+}
+
 func main() {
 	auth := flag.Bool("auth", false, "Authenticate to DMM GAMES PLAYER")
 	launch := flag.String("launch", "", "Launch a game")
+	install := flag.String("install", "", "Install a game")
+	list_games := flag.Bool("list-games", false, "List all games owned by user")
+	handle_protocol := flag.String("handle-protocol", "", "Used to handle the dmmgameplayer mime protocol")
 	flag.Parse()
 
 	_, err := os.Stat("epiphaneia.json")
@@ -42,6 +71,14 @@ func main() {
 	ident := dmmgo.NewDeviceIdentity(config.MACAddress, config.HDDSerial, config.MotherboardSerial)
 	client = dmmgo.NewClient(ident, config.AccessToken)
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if *handle_protocol != "" {
+		HandleProtocol(*handle_protocol)
+		return
+	}
+
 	if *auth == true {
 		DoAuthenticationFlow()
 		return
@@ -50,4 +87,16 @@ func main() {
 		LaunchGame(*launch)
 		return
 	}
+
+	if *install != "" {
+		InstallGame(ctx, *install)
+		return
+	}
+
+	if *list_games == true {
+		ListGames()
+		return
+	}
+
+	flag.Usage()
 }

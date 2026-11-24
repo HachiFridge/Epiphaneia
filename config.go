@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 
 	dmmgo "codeberg.org/kita/dmm-go"
@@ -10,6 +11,7 @@ import (
 type Game struct {
 	ProductID string `json:"product_id"`
 	Location  string `json:"location"`
+	Version   string `json:"version"`
 }
 
 type Config struct {
@@ -48,6 +50,7 @@ func WriteConfig(config *Config) error {
 	if err != nil {
 		return err
 	}
+	log.Print("Writing configuration...")
 	if err := os.WriteFile("epiphaneia.json", data, 0644); err != nil {
 		return err
 	}
