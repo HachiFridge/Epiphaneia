@@ -17,6 +17,7 @@ import (
 var (
 	config *Config
 	client *dmmgo.Client
+	enable_fanza bool
 )
 
 func ListGames() {
@@ -46,7 +47,11 @@ func main() {
 	install := flag.String("install", "", "Install a game")
 	list_games := flag.Bool("list-games", false, "List all games owned by user")
 	handle_protocol := flag.String("handle-protocol", "", "Used to handle the dmmgameplayer mime protocol")
+	fanza := flag.Bool("allow-fanza", false, "Allow FANZA GAMES content (does nothing)")
+	install_dir := flag.String("install-dir", "", "Install destination path")
 	flag.Parse()
+
+	enable_fanza = *fanza
 
 	_, err := os.Stat("epiphaneia.json")
 	if errors.Is(err, os.ErrNotExist) {
@@ -89,7 +94,15 @@ func main() {
 	}
 
 	if *install != "" {
-		InstallGame(ctx, *install)
+		if *install_dir == "" {
+			home_dir, err := os.UserHomeDir()
+			if err != nil {
+				log.Fatal("Could not determine your home folder. Specify install path with -install-dir.")
+			}
+			install_dir = &home_dir
+		}
+
+		InstallGame(ctx, *install, *install_dir)
 		return
 	}
 

@@ -12,6 +12,7 @@ type Game struct {
 	ProductID string `json:"product_id"`
 	Location  string `json:"location"`
 	Version   string `json:"version"`
+	IgnoreFileList []string `json:"ignore_files"`
 }
 
 type Config struct {
