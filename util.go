@@ -1,12 +1,12 @@
 package main
 
 import (
-	"os"
 	"crypto/md5"
-	"os/exec"
-	"runtime"
 	"encoding/hex"
 	"io"
+	"os"
+	"os/exec"
+	"runtime"
 )
 
 func fileMD5Sum(filePath string) (string, error) {

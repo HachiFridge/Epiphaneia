@@ -15,6 +15,7 @@ func CheckAccessToken() error {
 	if err := client.CheckAccessToken(config.AccessToken); err != nil {
 		return fmt.Errorf("Access token error: %v", err)
 	}
+	log.Print("Access token verified")
 
 	return nil
 }

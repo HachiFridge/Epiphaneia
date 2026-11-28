@@ -1,16 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"path"
-	"strings"
-	"bufio"
-	"os"
 	"runtime"
+	"strings"
 
 	dmmgo "codeberg.org/kita/dmm-go"
 )
@@ -98,11 +98,83 @@ func GetGameConfig(product_id string) *Game {
 	return nil
 }
 
-func LaunchGame(product_id string) {
-	if runtime.GOOS != "windows" {
-		log.Fatal("Launching games on other platforms is not yet supported.")
+func LaunchGameLinux(cfg Game, exe string, args []string) {
+	umu, err := exec.LookPath("umu-run")
+	if err != nil {
+		log.Fatal("umu-run was not found. Please install umu-launcher first.")
+	}
+	log.Printf("umu-run found at %s", umu)
+
+	for k := range cfg.Environment {
+		for _, v := range []string{"PROTONPATH", "GAMEID", "WINEPREFIX"} {
+			if v == k {
+				log.Fatalf("Error: %s is a reserved environment variable", v)
+			}
+		}
 	}
 
+	var new_args []string
+
+	new_args = append(new_args, exe)
+	new_args = append(new_args, args...)
+
+	cmd := exec.Command(umu, new_args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	for _, v := range os.Environ() {
+		cmd.Env = append(cmd.Env, v)
+	}
+
+	cmd.Env = append(cmd.Env, "GAMEID=umu-default")
+	if cfg.ProtonPath != "" {
+		_, err := os.Stat(cfg.ProtonPath)
+		if err != nil {
+			log.Fatalf("Error with Proton path: %s", err)
+		}
+		log.Printf("Using Proton at %s (overridden by game-specific config)", cfg.ProtonPath)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("PROTONPATH=%s", cfg.ProtonPath))
+	} else {
+		if config.ProtonPath != "" {
+			_, err := os.Stat(config.ProtonPath)
+			if err != nil {
+				log.Fatalf("Error with Proton path: %s", err)
+			}
+			log.Printf("Using Proton at %s", config.ProtonPath)
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PROTONPATH=%s", config.ProtonPath))
+		} else {
+			log.Print("Using default provided Proton by umu-launcher")
+		}
+	}
+	if cfg.WinePrefix != "" {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("WINEPREFIX=%s", cfg.WinePrefix))
+	} else {
+		h, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatal("Error: Could not determine your home folder. Specify WINEPREFIX manually in configuration.")
+		}
+		p := path.Join(h, ".local", "share", "epihaneia", "games", cfg.ProductID)
+		if err := os.MkdirAll(p, 0750); err != nil {
+			log.Fatalf("Error: Unable to make directory %s", p)
+		}
+		cmd.Env = append(cmd.Env, fmt.Sprintf("WINEPREFIX=%s", p))
+	}
+	for k, v := range cfg.Environment {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+	}
+	log.Print("Environment variables:")
+	for _, v := range cmd.Env {
+		log.Print(v)
+	}
+
+	log.Print("Launching...")
+
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("%s: %s", cfg.ProductID, err)
+	}
+}
+
+func LaunchGame(product_id string) {
 	if err := CheckAccessToken(); err != nil {
 		log.Fatal(err)
 	}
@@ -118,21 +190,25 @@ func LaunchGame(product_id string) {
 	}
 
 	c := GetGameConfig(product_id)
-	cmd := path.Join(c.Location, data.ProductID, data.ExecFilename)
+	executable := path.Join(c.Location, data.ProductID, data.ExecFilename)
 	args := strings.Split(data.ExecuteArgs, " ")
 
 	log.Printf("Product: %s", data.ProductID)
 	log.Printf("Version: %s (local: %s)", data.LatestVersion, c.Version)
-	log.Printf("Executable: %s", cmd)
-	log.Printf("Args: %s", data.ExecuteArgs)
+	log.Printf("Command: %s %s", executable, data.ExecuteArgs)
 
-	log.Printf("Launching...")
-
-	_cmd := exec.Command(cmd, args...)
-	_cmd.Start()
-	_cmd.Wait()
-
-	log.Print("Process exited")
+	switch runtime.GOOS {
+	case "linux":
+		LaunchGameLinux(*c, executable, args)
+	case "windows":
+		cmd := exec.Command(executable, args...)
+		log.Print("Launching...")
+		if err := cmd.Run(); err != nil {
+			log.Fatalf("%s: %s", product_id, err)
+		}
+	default:
+		log.Fatalf("Launching games on %s is not supported", runtime.GOOS)
+	}
 }
 
 func InstallGame(ctx context.Context, product_id string, dest_dir string) {
@@ -149,7 +225,6 @@ func InstallGame(ctx context.Context, product_id string, dest_dir string) {
 
 	var data dmmgo.InstallCLData
 
-
 	for {
 		d, err := client.GetInstallData(product_id, "GCL")
 
@@ -163,7 +238,6 @@ func InstallGame(ctx context.Context, product_id string, dest_dir string) {
 		data = *d
 		break
 	}
-
 
 	fold := path.Join(dest_dir, product_id)
 	log.Print("Destination directory:", fold)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,16 +16,22 @@ import (
 )
 
 var (
-	config *Config
-	client *dmmgo.Client
+	config       *Config
+	client       *dmmgo.Client
 	enable_fanza bool
+	version      = "version unknown"
+	commit       = "N/A"
 )
+
+//go:embed LICENSE
+var efs embed.FS
 
 func ListGames() {
 	if err := CheckAccessToken(); err != nil {
 		log.Fatal(err)
 	}
 
+	log.Print("Retrieving games in library...")
 	games, err := client.GetUserGames()
 	if err != nil {
 		log.Fatal("Could not get games: ", err)
@@ -49,18 +56,35 @@ func main() {
 	handle_protocol := flag.String("handle-protocol", "", "Used to handle the dmmgameplayer mime protocol")
 	fanza := flag.Bool("allow-fanza", false, "Allow FANZA GAMES content (does nothing)")
 	install_dir := flag.String("install-dir", "", "Install destination path")
+	print_license := flag.Bool("license", false, "Display license")
+	do_write_config := flag.Bool("write-config", false, "Write configuration")
 	flag.Parse()
+
+	log.Printf("Epiphaneia %s (%s)", version, commit)
+
+	if *print_license == true {
+		data, err := efs.ReadFile("LICENSE")
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(data))
+		return
+	}
 
 	enable_fanza = *fanza
 
-	_, err := os.Stat("epiphaneia.json")
+	f, err := GetConfigFilePath()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	_, err = os.Stat(f)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := WriteConfig(nil); err != nil {
-			log.Fatal("Could not write empty config file")
-			os.Exit(1)
+			log.Fatalf("Could not write empty config file: %s", err)
 		}
 	} else if err != nil {
-		log.Fatal("Could not check config file:", err)
+		log.Fatalf("Could not check config file: %s", err)
 	}
 
 	cfg, err := GetConfig()
@@ -78,6 +102,14 @@ func main() {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+
+	if *do_write_config == true {
+		if err := WriteConfig(config); err != nil {
+			log.Fatalf("Could not write config file: %s", err)
+		}
+		log.Print("Wrote configuration file")
+		return
+	}
 
 	if *handle_protocol != "" {
 		HandleProtocol(*handle_protocol)

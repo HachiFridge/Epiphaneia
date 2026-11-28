@@ -1,19 +1,19 @@
 package main
 
 import (
-	"context"
-	"net/http"
-	"path"
-	"os"
-	"path/filepath"
-	"log"
-	"sync"
-	"errors"
 	"bytes"
-	"fmt"
+	"context"
 	"encoding/json"
-	"strconv"
+	"errors"
+	"fmt"
 	"io"
+	"log"
+	"net/http"
+	"os"
+	"path"
+	"path/filepath"
+	"strconv"
+	"sync"
 	"time"
 
 	dmmgo "codeberg.org/kita/dmm-go"
@@ -39,7 +39,6 @@ type FileListResp struct {
 	FileList []File `json:"file_list"`
 	Page     int    `json:"page"`
 }
-
 
 func install_worker(ctx context.Context, client *http.Client, file File, dest_dir string, policy string, gamecfg Game) error {
 	dest := path.Join(dest_dir, file.LocalPath)
